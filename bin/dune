@@ -1,0 +1,4 @@
+(executable
+ (name main)
+ (public_name dex_orderbook)
+ (libraries dex_orderbook yojson))

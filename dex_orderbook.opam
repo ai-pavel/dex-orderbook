@@ -1,0 +1,20 @@
+opam-version: "2.0"
+name: "dex_orderbook"
+version: "0.1.0"
+synopsis: "Decentralized exchange order book engine"
+description: "An OCaml implementation of a DEX order book with matching engine, settlement, and CLI"
+maintainer: "Pavel"
+authors: "Pavel"
+license: "MIT"
+homepage: "https://github.com/pavel-genai/dex-orderbook"
+bug-reports: "https://github.com/pavel-genai/dex-orderbook/issues"
+depends: [
+  "ocaml" {>= "4.14"}
+  "dune" {>= "3.0"}
+  "yojson" {>= "2.0"}
+  "alcotest" {>= "1.6" & with-test}
+]
+build: [
+  ["dune" "build" "-p" name "-j" jobs]
+  ["dune" "runtest" "-p" name "-j" jobs] {with-test}
+]

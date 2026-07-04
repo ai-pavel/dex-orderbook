@@ -1,0 +1,9 @@
+_build/
+*.byte
+*.native
+*.install
+.merlin
+*.swp
+*~
+.vscode/
+_opam/
