@@ -18,8 +18,8 @@ let pair_key (book : t) = book.base_token ^ "/" ^ book.quote_token
 let insert_bid (book : t) (order : Order.t) =
   let rec insert = function
     | [] -> [ order ]
-    | (h :: _) as l when order.price > h.price -> order :: l
-    | h :: t when order.price = h.price && order.timestamp < h.timestamp ->
+    | ((h : Order.t) :: _) as l when order.price > h.price -> order :: l
+    | (h : Order.t) :: t when order.price = h.price && order.timestamp < h.timestamp ->
         order :: h :: t
     | h :: t -> h :: insert t
   in
@@ -29,8 +29,8 @@ let insert_bid (book : t) (order : Order.t) =
 let insert_ask (book : t) (order : Order.t) =
   let rec insert = function
     | [] -> [ order ]
-    | (h :: _) as l when order.price < h.price -> order :: l
-    | h :: t when order.price = h.price && order.timestamp < h.timestamp ->
+    | ((h : Order.t) :: _) as l when order.price < h.price -> order :: l
+    | (h : Order.t) :: t when order.price = h.price && order.timestamp < h.timestamp ->
         order :: h :: t
     | h :: t -> h :: insert t
   in
