@@ -1,7 +1,7 @@
 # DEX Order Book Engine
 
-[![CI](https://github.com/pavel-genai/dex-orderbook/actions/workflows/ci.yml/badge.svg)](https://github.com/pavel-genai/dex-orderbook/actions/workflows/ci.yml)
-[![codecov](https://codecov.io/gh/pavel-genai/dex-orderbook/branch/main/graph/badge.svg)](https://codecov.io/gh/pavel-genai/dex-orderbook)
+[![CI](https://github.com/ai-pavel/dex-orderbook/actions/workflows/ci.yml/badge.svg)](https://github.com/ai-pavel/dex-orderbook/actions/workflows/ci.yml)
+[![codecov](https://codecov.io/gh/ai-pavel/dex-orderbook/branch/main/graph/badge.svg)](https://codecov.io/gh/ai-pavel/dex-orderbook)
 
 An OCaml implementation of a decentralized exchange (DEX) order book engine with price-time priority matching, partial fills, and atomic settlement.
 
