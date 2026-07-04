@@ -19,4 +19,7 @@
   (ocaml (>= 4.14))
   (dune (>= 3.0))
   (yojson (>= 2.0))
-  (alcotest (and (>= 1.6) :with-test))))
+  (alcotest (and (>= 1.6) :with-test))
+  (bisect_ppx (and (>= 2.6) :with-test))))
+
+(instrumentation (backend bisect_ppx))
