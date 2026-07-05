@@ -43,18 +43,21 @@ let next_timestamp (engine : t) =
   engine.timestamp <- engine.timestamp + 1;
   engine.timestamp
 
-(** Check if a trader has sufficient balance to place an order *)
-let check_balance (engine : t) (order : Order.t) =
+(** Check whether a trader can afford [qty] of [order] resting at its own
+    limit price. Used only for the remainder that will rest on the book;
+    marketable fills are checked (at the true maker price) per-fill inside
+    [settle_trade]. *)
+let can_afford_resting (engine : t) (order : Order.t) ~qty =
   match order.side with
   | Bid ->
-      (* Buyer needs quote tokens (price * quantity) *)
-      let needed = order.price *. order.quantity in
+      (* Buyer needs quote tokens to back the resting bid at its limit price *)
+      let needed = order.price *. qty in
       Settlement.has_sufficient_balance engine.balances ~trader:order.trader
         ~token:order.quote_token ~amount:needed
   | Ask ->
-      (* Seller needs base tokens (quantity) *)
+      (* Seller needs base tokens for the resting ask *)
       Settlement.has_sufficient_balance engine.balances ~trader:order.trader
-        ~token:order.base_token ~amount:order.quantity
+        ~token:order.base_token ~amount:qty
 
 (** Match a new incoming order against the book. Returns fills. *)
 let match_order (engine : t) (book : Orderbook.t) (order : Order.t) :
@@ -139,18 +142,22 @@ let place_order (engine : t) ~id ~trader ~side ~price ~quantity ~base_token
     Order.create ~id ~trader ~side ~price ~quantity ~timestamp:ts ~base_token
       ~quote_token
   in
-  (* Check balance *)
-  if not (check_balance engine order) then
-    {
-      order_id = id;
-      fills = [];
-      status = "rejected";
-      message = "insufficient balance";
-    }
-  else
-    let book = get_or_create_book engine ~base_token ~quote_token in
-    let fills = match_order engine book order in
-    if order.quantity > 1e-10 then (
+  (* No pessimistic up-front check against the taker's own limit price:
+     marketable fills execute at the maker price and are verified per-fill
+     by settle_trade, so a crossing bid at 105 matching an ask at 100 needs
+     only 100*qty, not 105*qty. We only need to ensure the trader can afford
+     any remainder that will rest on the book. *)
+  let book = get_or_create_book engine ~base_token ~quote_token in
+  let fills = match_order engine book order in
+  if order.quantity > 1e-10 then
+    if not (can_afford_resting engine order ~qty:order.quantity) then
+      {
+        order_id = id;
+        fills;
+        status = "rejected";
+        message = "insufficient balance";
+      }
+    else (
       (* Remaining quantity rests on the book *)
       Orderbook.add_order book order;
       {
@@ -159,13 +166,13 @@ let place_order (engine : t) ~id ~trader ~side ~price ~quantity ~base_token
         status = "partial";
         message = "order partially filled and resting";
       })
-    else
-      {
-        order_id = id;
-        fills;
-        status = "filled";
-        message = "order fully filled";
-      }
+  else
+    {
+      order_id = id;
+      fills;
+      status = "filled";
+      message = "order fully filled";
+    }
 
 let cancel_order (engine : t) ~order_id ~base_token ~quote_token =
   let book = get_or_create_book engine ~base_token ~quote_token in

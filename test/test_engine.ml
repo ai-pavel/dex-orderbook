@@ -76,6 +76,29 @@ let test_self_trade_prevention () =
   Alcotest.(check (list pass)) "no fills (self-trade prevented)" [] r.fills;
   Alcotest.(check string) "order rests" "partial" r.status
 
+(* Test: a marketable bid crossing at a high limit is priced at the maker
+   price, not the taker's limit, so a buyer with funds for the real cost is
+   not wrongly rejected. *)
+let test_marketable_bid_priced_at_maker () =
+  let engine = Matching_engine.create () in
+  (* Seller has ETH to sell at 100. *)
+  Matching_engine.deposit engine ~trader:"alice" ~token:"ETH" ~amount:10.0;
+  let _ =
+    Matching_engine.place_order engine ~id:"1" ~trader:"alice" ~side:Order.Ask
+      ~price:100.0 ~quantity:10.0 ~base_token:"ETH" ~quote_token:"USDC"
+  in
+  (* Buyer has exactly 1000 USDC: enough at the 100 maker price, but NOT
+     enough at the buyer's own 105 limit (1050). Old code rejected this. *)
+  Matching_engine.deposit engine ~trader:"bob" ~token:"USDC" ~amount:1000.0;
+  let r =
+    Matching_engine.place_order engine ~id:"2" ~trader:"bob" ~side:Order.Bid
+      ~price:105.0 ~quantity:10.0 ~base_token:"ETH" ~quote_token:"USDC"
+  in
+  Alcotest.(check string) "bid fills at maker price" "filled" r.status;
+  Alcotest.(check int) "one fill" 1 (List.length r.fills);
+  let fill = List.hd r.fills in
+  Alcotest.(check (float 0.01)) "fill price is maker price" 100.0 fill.price
+
 (* Test: insufficient balance rejection *)
 let test_insufficient_balance () =
   let engine = Matching_engine.create () in
@@ -174,6 +197,8 @@ let () =
           Alcotest.test_case "partial fill" `Quick test_partial_fill;
           Alcotest.test_case "self-trade prevention" `Quick
             test_self_trade_prevention;
+          Alcotest.test_case "marketable bid priced at maker" `Quick
+            test_marketable_bid_priced_at_maker;
           Alcotest.test_case "insufficient balance" `Quick
             test_insufficient_balance;
           Alcotest.test_case "cancel order" `Quick test_cancel_order;
