@@ -165,6 +165,96 @@ let test_balance_update () =
   Alcotest.(check (float 0.01)) "bob ETH" 110.0 bob_eth;
   Alcotest.(check (float 0.01)) "bob USDC" 99000.0 bob_usdc
 
+(* Test: a taker order sweeps multiple price levels in one call *)
+let test_multi_level_sweep () =
+  let engine = engine_with_deposits () in
+  (* Alice rests three asks at rising prices. *)
+  let _ =
+    Matching_engine.place_order engine ~id:"a1" ~trader:"alice" ~side:Order.Ask
+      ~price:100.0 ~quantity:5.0 ~base_token:"ETH" ~quote_token:"USDC"
+  in
+  let _ =
+    Matching_engine.place_order engine ~id:"a2" ~trader:"alice" ~side:Order.Ask
+      ~price:101.0 ~quantity:5.0 ~base_token:"ETH" ~quote_token:"USDC"
+  in
+  let _ =
+    Matching_engine.place_order engine ~id:"a3" ~trader:"alice" ~side:Order.Ask
+      ~price:102.0 ~quantity:5.0 ~base_token:"ETH" ~quote_token:"USDC"
+  in
+  (* Bob's aggressive bid sweeps the first two levels and part of the third. *)
+  let r =
+    Matching_engine.place_order engine ~id:"b1" ~trader:"bob" ~side:Order.Bid
+      ~price:102.0 ~quantity:12.0 ~base_token:"ETH" ~quote_token:"USDC"
+  in
+  Alcotest.(check string) "bid fully filled" "filled" r.status;
+  Alcotest.(check int) "three fills across levels" 3 (List.length r.fills);
+  let prices = List.map (fun (f : Matching_engine.fill) -> f.price) r.fills in
+  (match prices with
+  | [ p0; p1; p2 ] ->
+      Alcotest.(check (float 0.01)) "level 1 price" 100.0 p0;
+      Alcotest.(check (float 0.01)) "level 2 price" 101.0 p1;
+      Alcotest.(check (float 0.01)) "level 3 price" 102.0 p2
+  | _ -> Alcotest.fail "expected exactly three fills");
+  let qtys = List.map (fun (f : Matching_engine.fill) -> f.quantity) r.fills in
+  (match qtys with
+  | [ q0; q1; q2 ] ->
+      Alcotest.(check (float 0.01)) "level 1 qty" 5.0 q0;
+      Alcotest.(check (float 0.01)) "level 2 qty" 5.0 q1;
+      Alcotest.(check (float 0.01)) "level 3 partial qty" 2.0 q2
+  | _ -> Alcotest.fail "expected exactly three fills")
+
+(* Test: cancelling a nonexistent order returns the 'order not found' branch *)
+let test_cancel_not_found () =
+  let engine = engine_with_deposits () in
+  (* Create the book by resting an unrelated order, then cancel a bad id. *)
+  let _ =
+    Matching_engine.place_order engine ~id:"1" ~trader:"alice" ~side:Order.Ask
+      ~price:100.0 ~quantity:1.0 ~base_token:"ETH" ~quote_token:"USDC"
+  in
+  let result =
+    Matching_engine.cancel_order engine ~order_id:"does-not-exist"
+      ~base_token:"ETH" ~quote_token:"USDC"
+  in
+  match result with
+  | `Assoc l ->
+      (match List.assoc_opt "status" l with
+      | Some (`String s) -> Alcotest.(check string) "error status" "error" s
+      | _ -> Alcotest.fail "expected status");
+      (match List.assoc_opt "message" l with
+      | Some (`String m) ->
+          Alcotest.(check string) "message" "order not found" m
+      | _ -> Alcotest.fail "expected message")
+  | _ -> Alcotest.fail "bad result"
+
+(* Test: total per-token balances are conserved across a sequence of trades *)
+let test_value_conservation () =
+  let engine = engine_with_deposits () in
+  let total token =
+    Settlement.get_balance engine.balances ~trader:"alice" ~token
+    +. Settlement.get_balance engine.balances ~trader:"bob" ~token
+  in
+  let eth0 = total "ETH" in
+  let usdc0 = total "USDC" in
+  (* A sequence of crossing trades between alice and bob. *)
+  let _ =
+    Matching_engine.place_order engine ~id:"1" ~trader:"alice" ~side:Order.Ask
+      ~price:100.0 ~quantity:10.0 ~base_token:"ETH" ~quote_token:"USDC"
+  in
+  let _ =
+    Matching_engine.place_order engine ~id:"2" ~trader:"bob" ~side:Order.Bid
+      ~price:100.0 ~quantity:4.0 ~base_token:"ETH" ~quote_token:"USDC"
+  in
+  let _ =
+    Matching_engine.place_order engine ~id:"3" ~trader:"bob" ~side:Order.Bid
+      ~price:101.0 ~quantity:3.0 ~base_token:"ETH" ~quote_token:"USDC"
+  in
+  let _ =
+    Matching_engine.place_order engine ~id:"4" ~trader:"alice" ~side:Order.Ask
+      ~price:99.0 ~quantity:2.0 ~base_token:"ETH" ~quote_token:"USDC"
+  in
+  Alcotest.(check (float 0.001)) "ETH conserved" eth0 (total "ETH");
+  Alcotest.(check (float 0.001)) "USDC conserved" usdc0 (total "USDC")
+
 let () =
   Alcotest.run "DEX Orderbook"
     [
@@ -180,5 +270,9 @@ let () =
           Alcotest.test_case "price-time priority" `Quick
             test_price_time_priority;
           Alcotest.test_case "balance update" `Quick test_balance_update;
+          Alcotest.test_case "multi-level sweep" `Quick test_multi_level_sweep;
+          Alcotest.test_case "cancel not found" `Quick test_cancel_not_found;
+          Alcotest.test_case "value conservation" `Quick
+            test_value_conservation;
         ] );
     ]
