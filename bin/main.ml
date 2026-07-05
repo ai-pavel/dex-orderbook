@@ -74,6 +74,11 @@ let () =
         with
         | Failure msg -> `Assoc [ ("error", `String msg) ]
         | Yojson.Json_error msg -> `Assoc [ ("error", `String ("JSON parse error: " ^ msg)) ]
+        (* Catch-all: any other non-fatal exception raised while handling a
+           single line must not kill the streaming session. Emit a structured
+           error and continue reading. End_of_file is handled by the outer
+           try and remains the only loop terminator. *)
+        | e -> `Assoc [ ("error", `String (Printexc.to_string e)) ]
       in
       print_endline (Yojson.Safe.to_string result)
     done
