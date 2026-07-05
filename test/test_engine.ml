@@ -74,7 +74,19 @@ let test_self_trade_prevention () =
       ~price:100.0 ~quantity:10.0 ~base_token:"ETH" ~quote_token:"USDC"
   in
   Alcotest.(check (list pass)) "no fills (self-trade prevented)" [] r.fills;
-  Alcotest.(check string) "order rests" "partial" r.status
+  Alcotest.(check string) "order rests" "partial" r.status;
+  (* The original resting ask must still be present: self-trade prevention
+     must not cancel the maker order. *)
+  let book = Matching_engine.get_book engine ~base_token:"ETH" ~quote_token:"USDC" in
+  match book with
+  | `Assoc l -> (
+      match List.assoc "asks" l with
+      | `List [ `Assoc ask ] -> (
+          match List.assoc "id" ask with
+          | `String id -> Alcotest.(check string) "maker ask still resting" "1" id
+          | _ -> Alcotest.fail "bad ask id")
+      | _ -> Alcotest.fail "expected the maker ask still on the book")
+  | _ -> Alcotest.fail "bad book"
 
 (* Test: insufficient balance rejection *)
 let test_insufficient_balance () =

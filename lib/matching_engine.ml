@@ -77,14 +77,11 @@ let match_order (engine : t) (book : Orderbook.t) (order : Order.t) :
           | Ask -> order.price <= maker.price
         in
         if not price_match then continue := false
-        else if order.trader = maker.trader then (
-          (* Self-trade prevention: skip this maker order, remove it *)
-          let _ =
-            match order.side with
-            | Bid -> Orderbook.remove_best_ask book
-            | Ask -> Orderbook.remove_best_bid book
-          in
-          ())
+        else if order.trader = maker.trader then
+          (* Self-trade prevention (CANCEL_NEWEST): stop matching so the
+             incoming taker rests behind its own resting order. The resting
+             maker is left intact on the book rather than being cancelled. *)
+          continue := false
         else
           let fill_qty = Float.min !remaining maker.quantity in
           let fill_price = maker.price in
