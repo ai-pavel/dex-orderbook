@@ -165,6 +165,27 @@ let test_balance_update () =
   Alcotest.(check (float 0.01)) "bob ETH" 110.0 bob_eth;
   Alcotest.(check (float 0.01)) "bob USDC" 99000.0 bob_usdc
 
+(* Test: place_order rejects invalid price/quantity (negative, zero, NaN) *)
+let test_invalid_price_quantity () =
+  let engine = engine_with_deposits () in
+  let place ~price ~quantity =
+    Matching_engine.place_order engine ~id:"x" ~trader:"alice" ~side:Order.Bid
+      ~price ~quantity ~base_token:"ETH" ~quote_token:"USDC"
+  in
+  let check label r =
+    Alcotest.(check string) (label ^ " rejected") "rejected"
+      r.Matching_engine.status;
+    Alcotest.(check string) (label ^ " message") "invalid price or quantity"
+      r.Matching_engine.message
+  in
+  check "negative price" (place ~price:(-1.0) ~quantity:10.0);
+  check "zero price" (place ~price:0.0 ~quantity:10.0);
+  check "negative quantity" (place ~price:100.0 ~quantity:(-5.0));
+  check "zero quantity" (place ~price:100.0 ~quantity:0.0);
+  check "nan price" (place ~price:Float.nan ~quantity:10.0);
+  check "nan quantity" (place ~price:100.0 ~quantity:Float.nan);
+  check "inf price" (place ~price:Float.infinity ~quantity:10.0)
+
 let () =
   Alcotest.run "DEX Orderbook"
     [
@@ -180,5 +201,7 @@ let () =
           Alcotest.test_case "price-time priority" `Quick
             test_price_time_priority;
           Alcotest.test_case "balance update" `Quick test_balance_update;
+          Alcotest.test_case "invalid price/quantity" `Quick
+            test_invalid_price_quantity;
         ] );
     ]

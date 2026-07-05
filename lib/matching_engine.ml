@@ -134,6 +134,21 @@ type place_result = {
 
 let place_order (engine : t) ~id ~trader ~side ~price ~quantity ~base_token
     ~quote_token : place_result =
+  (* Validate numeric inputs: price and quantity must be strictly positive
+     and finite. This keeps NaN/inf/zero/negative orders out of the book,
+     which would otherwise loop or rest forever in the matching engine. *)
+  if
+    not
+      (Float.is_finite price && Float.is_finite quantity && price > 0.
+     && quantity > 0.)
+  then
+    {
+      order_id = id;
+      fills = [];
+      status = "rejected";
+      message = "invalid price or quantity";
+    }
+  else
   let ts = next_timestamp engine in
   let order =
     Order.create ~id ~trader ~side ~price ~quantity ~timestamp:ts ~base_token
