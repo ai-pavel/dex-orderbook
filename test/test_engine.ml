@@ -165,6 +165,27 @@ let test_balance_update () =
   Alcotest.(check (float 0.01)) "bob ETH" 110.0 bob_eth;
   Alcotest.(check (float 0.01)) "bob USDC" 99000.0 bob_usdc
 
+(* Test: cancel/get_book on an unknown pair must not create a phantom book *)
+let test_no_phantom_books () =
+  let engine = Matching_engine.create () in
+  (* Cancel a nonexistent order on a never-traded pair. *)
+  let r =
+    Matching_engine.cancel_order engine ~order_id:"nope" ~base_token:"FOO"
+      ~quote_token:"BAR"
+  in
+  (match r with
+  | `Assoc l -> (
+      match List.assoc_opt "status" l with
+      | Some (`String s) -> Alcotest.(check string) "error status" "error" s
+      | _ -> Alcotest.fail "expected status")
+  | _ -> Alcotest.fail "bad result");
+  Alcotest.(check int) "no book created by cancel" 0
+    (Hashtbl.length engine.books);
+  (* Query an unknown pair. *)
+  let _ = Matching_engine.get_book engine ~base_token:"FOO" ~quote_token:"BAR" in
+  Alcotest.(check int) "no book created by get_book" 0
+    (Hashtbl.length engine.books)
+
 let () =
   Alcotest.run "DEX Orderbook"
     [
@@ -180,5 +201,6 @@ let () =
           Alcotest.test_case "price-time priority" `Quick
             test_price_time_priority;
           Alcotest.test_case "balance update" `Quick test_balance_update;
+          Alcotest.test_case "no phantom books" `Quick test_no_phantom_books;
         ] );
     ]

@@ -39,6 +39,11 @@ let get_or_create_book (engine : t) ~base_token ~quote_token =
       Hashtbl.replace engine.books key b;
       b
 
+(** Read-only lookup that does NOT materialize a book for an unknown pair. *)
+let find_book (engine : t) ~base_token ~quote_token =
+  let key = base_token ^ "/" ^ quote_token in
+  Hashtbl.find_opt engine.books key
+
 let next_timestamp (engine : t) =
   engine.timestamp <- engine.timestamp + 1;
   engine.timestamp
@@ -167,21 +172,36 @@ let place_order (engine : t) ~id ~trader ~side ~price ~quantity ~base_token
         message = "order fully filled";
       }
 
+let order_not_found order_id =
+  `Assoc
+    [
+      ("status", `String "error");
+      ("message", `String "order not found");
+      ("id", `String order_id);
+    ]
+
 let cancel_order (engine : t) ~order_id ~base_token ~quote_token =
-  let book = get_or_create_book engine ~base_token ~quote_token in
-  match Orderbook.remove_order book order_id with
-  | Some _ -> `Assoc [ ("status", `String "cancelled"); ("id", `String order_id) ]
+  (* Read-only lookup: do not materialize a phantom book for an unknown pair. *)
+  match find_book engine ~base_token ~quote_token with
+  | None -> order_not_found order_id
+  | Some book -> (
+      match Orderbook.remove_order book order_id with
+      | Some _ ->
+          `Assoc [ ("status", `String "cancelled"); ("id", `String order_id) ]
+      | None -> order_not_found order_id)
+
+let get_book (engine : t) ~base_token ~quote_token =
+  (* Do not create a book as a side effect of querying an unknown pair;
+     return an empty-book view instead. *)
+  match find_book engine ~base_token ~quote_token with
+  | Some book -> Orderbook.to_yojson book
   | None ->
       `Assoc
         [
-          ("status", `String "error");
-          ("message", `String "order not found");
-          ("id", `String order_id);
+          ("pair", `String (base_token ^ "/" ^ quote_token));
+          ("bids", `List []);
+          ("asks", `List []);
         ]
-
-let get_book (engine : t) ~base_token ~quote_token =
-  let book = get_or_create_book engine ~base_token ~quote_token in
-  Orderbook.to_yojson book
 
 let get_balances (engine : t) ~trader =
   Settlement.trader_balances_to_yojson engine.balances ~trader
