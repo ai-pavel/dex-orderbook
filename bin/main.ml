@@ -53,6 +53,22 @@ let handle_command engine json =
       let base_token = get_string json "base" in
       let quote_token = get_string json "quote" in
       Matching_engine.cancel_order engine ~order_id ~base_token ~quote_token
+  | "replace_order" ->
+      (* Cancel the resting order [id] and place a new order [new_id].
+         The replacement resets time priority (fresh timestamp). *)
+      let order_id = get_string json "id" in
+      let new_id = get_string json "new_id" in
+      let trader = get_string json "trader" in
+      let side = Order.side_of_string (get_string json "side") in
+      let price = get_float json "price" in
+      let quantity = get_float json "quantity" in
+      let base_token = get_string json "base" in
+      let quote_token = get_string json "quote" in
+      let result =
+        Matching_engine.replace_order engine ~order_id ~new_id ~trader ~side
+          ~price ~quantity ~base_token ~quote_token
+      in
+      Matching_engine.place_result_to_yojson result
   | "get_book" ->
       let base_token = get_string json "base" in
       let quote_token = get_string json "quote" in

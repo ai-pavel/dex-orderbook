@@ -50,7 +50,13 @@ Then send newline-delimited JSON commands on stdin:
 {"command": "get_book", "base": "ETH", "quote": "USDC"}
 {"command": "get_balances", "trader": "alice"}
 {"command": "cancel_order", "id": "1", "base": "ETH", "quote": "USDC"}
+{"command": "replace_order", "id": "1", "new_id": "1b", "trader": "alice", "side": "bid", "price": 101.0, "quantity": 8.0, "base": "ETH", "quote": "USDC"}
 ```
+
+`replace_order` cancels the resting order `id` and places a new order `new_id`
+with the supplied parameters. **The replacement resets time priority** (it is
+treated as a fresh order and receives a new timestamp). If the original order
+is not found, an `error` result with message `order not found` is returned.
 
 ## Testing
 

@@ -179,6 +179,26 @@ let cancel_order (engine : t) ~order_id ~base_token ~quote_token =
           ("id", `String order_id);
         ]
 
+(** Replace (amend) a resting order: cancel the existing [order_id] on the
+    given pair, then place a brand-new order with the supplied parameters.
+    Policy: the replacement is treated as a new order, so it RESETS
+    time priority (it receives a fresh timestamp). Returns an error result
+    if the original order is not found. *)
+let replace_order (engine : t) ~order_id ~new_id ~trader ~side ~price ~quantity
+    ~base_token ~quote_token : place_result =
+  let book = get_or_create_book engine ~base_token ~quote_token in
+  match Orderbook.remove_order book order_id with
+  | None ->
+      {
+        order_id;
+        fills = [];
+        status = "error";
+        message = "order not found";
+      }
+  | Some _ ->
+      place_order engine ~id:new_id ~trader ~side ~price ~quantity ~base_token
+        ~quote_token
+
 let get_book (engine : t) ~base_token ~quote_token =
   let book = get_or_create_book engine ~base_token ~quote_token in
   Orderbook.to_yojson book
