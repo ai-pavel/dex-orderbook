@@ -165,6 +165,33 @@ let test_balance_update () =
   Alcotest.(check (float 0.01)) "bob ETH" 110.0 bob_eth;
   Alcotest.(check (float 0.01)) "bob USDC" 99000.0 bob_usdc
 
+(* Test: resting orders reserve funds so a trader cannot over-commit *)
+let test_reserved_over_commitment () =
+  let engine = Matching_engine.create () in
+  (* Carol can afford exactly one 10-ETH bid at 100 (1000 USDC). *)
+  Matching_engine.deposit engine ~trader:"carol" ~token:"USDC" ~amount:1000.0;
+  let r1 =
+    Matching_engine.place_order engine ~id:"1" ~trader:"carol" ~side:Order.Bid
+      ~price:100.0 ~quantity:10.0 ~base_token:"ETH" ~quote_token:"USDC"
+  in
+  Alcotest.(check string) "first bid rests" "partial" r1.status;
+  (* Second identical bid must be rejected: the 1000 USDC is now reserved. *)
+  let r2 =
+    Matching_engine.place_order engine ~id:"2" ~trader:"carol" ~side:Order.Bid
+      ~price:100.0 ~quantity:10.0 ~base_token:"ETH" ~quote_token:"USDC"
+  in
+  Alcotest.(check string) "second bid rejected" "rejected" r2.status;
+  (* Cancelling the first releases the reservation, allowing a new bid. *)
+  let _ =
+    Matching_engine.cancel_order engine ~order_id:"1" ~base_token:"ETH"
+      ~quote_token:"USDC"
+  in
+  let r3 =
+    Matching_engine.place_order engine ~id:"3" ~trader:"carol" ~side:Order.Bid
+      ~price:100.0 ~quantity:10.0 ~base_token:"ETH" ~quote_token:"USDC"
+  in
+  Alcotest.(check string) "bid after cancel rests" "partial" r3.status
+
 let () =
   Alcotest.run "DEX Orderbook"
     [
@@ -180,5 +207,7 @@ let () =
           Alcotest.test_case "price-time priority" `Quick
             test_price_time_priority;
           Alcotest.test_case "balance update" `Quick test_balance_update;
+          Alcotest.test_case "reserved over-commitment" `Quick
+            test_reserved_over_commitment;
         ] );
     ]

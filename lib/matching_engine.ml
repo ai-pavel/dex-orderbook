@@ -100,6 +100,18 @@ let match_order (engine : t) (book : Orderbook.t) (order : Order.t) :
               ~quantity:fill_qty ~price:fill_price
           in
           if settled then (
+            (* The resting maker's funds were reserved when it was placed;
+               release the portion backing this fill so it is not double
+               counted against its available balance. *)
+            (match order.side with
+            | Bid ->
+                (* maker is a resting ask: base was reserved *)
+                Settlement.unlock engine.balances ~trader:maker.trader
+                  ~token:order.base_token ~amount:fill_qty
+            | Ask ->
+                (* maker is a resting bid: quote was reserved at maker.price *)
+                Settlement.unlock engine.balances ~trader:maker.trader
+                  ~token:order.quote_token ~amount:(fill_qty *. maker.price));
             fills :=
               {
                 buyer;
@@ -151,7 +163,16 @@ let place_order (engine : t) ~id ~trader ~side ~price ~quantity ~base_token
     let book = get_or_create_book engine ~base_token ~quote_token in
     let fills = match_order engine book order in
     if order.quantity > 1e-10 then (
-      (* Remaining quantity rests on the book *)
+      (* Remaining quantity rests on the book. Lock the funds backing it so
+         subsequent orders see a reduced available balance and settlement can
+         no longer fail mid-match from over-commitment. *)
+      (match side with
+      | Order.Bid ->
+          Settlement.lock engine.balances ~trader ~token:quote_token
+            ~amount:(price *. order.quantity)
+      | Order.Ask ->
+          Settlement.lock engine.balances ~trader ~token:base_token
+            ~amount:order.quantity);
       Orderbook.add_order book order;
       {
         order_id = id;
@@ -170,7 +191,16 @@ let place_order (engine : t) ~id ~trader ~side ~price ~quantity ~base_token
 let cancel_order (engine : t) ~order_id ~base_token ~quote_token =
   let book = get_or_create_book engine ~base_token ~quote_token in
   match Orderbook.remove_order book order_id with
-  | Some _ -> `Assoc [ ("status", `String "cancelled"); ("id", `String order_id) ]
+  | Some (o : Order.t) ->
+      (* Release the funds reserved for the cancelled resting order. *)
+      (match o.side with
+      | Order.Bid ->
+          Settlement.unlock engine.balances ~trader:o.trader ~token:o.quote_token
+            ~amount:(o.price *. o.quantity)
+      | Order.Ask ->
+          Settlement.unlock engine.balances ~trader:o.trader ~token:o.base_token
+            ~amount:o.quantity);
+      `Assoc [ ("status", `String "cancelled"); ("id", `String order_id) ]
   | None ->
       `Assoc
         [
