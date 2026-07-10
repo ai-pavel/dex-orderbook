@@ -1,3 +1,5 @@
 (library
  (name dex_orderbook)
- (libraries yojson))
+ (libraries yojson)
+ (instrumentation
+  (backend bisect_ppx)))
