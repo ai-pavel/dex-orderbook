@@ -261,10 +261,10 @@ let test_cli_place_order () =
 let test_cli_cancel_order () =
   let engine = Matching_engine.create () in
   Matching_engine.deposit engine ~trader:"alice" ~token:"ETH" ~amount:100.0;
-  let _ = Main.handle_command engine (Yojson.Safe.from_string
+  let _ = Cli.handle_command engine (Yojson.Safe.from_string
     {|{"command":"place_order","id":"1","trader":"alice","side":"ask","price":100.0,"quantity":10.0,"base":"ETH","quote":"USDC"}|})
   in
-  let result = Main.handle_command engine (Yojson.Safe.from_string
+  let result = Cli.handle_command engine (Yojson.Safe.from_string
     {|{"command":"cancel_order","id":"1","base":"ETH","quote":"USDC"}|})
   in
   match result with
@@ -274,7 +274,7 @@ let test_cli_cancel_order () =
 
 let test_cli_get_book () =
   let engine = Matching_engine.create () in
-  let result = Main.handle_command engine (Yojson.Safe.from_string
+  let result = Cli.handle_command engine (Yojson.Safe.from_string
     {|{"command":"get_book","base":"ETH","quote":"USDC"}|})
   in
   match result with
@@ -285,7 +285,7 @@ let test_cli_get_book () =
 let test_cli_get_balances () =
   let engine = Matching_engine.create () in
   Matching_engine.deposit engine ~trader:"alice" ~token:"ETH" ~amount:100.0;
-  let result = Main.handle_command engine (Yojson.Safe.from_string
+  let result = Cli.handle_command engine (Yojson.Safe.from_string
     {|{"command":"get_balances","trader":"alice"}|})
   in
   match result with
@@ -295,7 +295,7 @@ let test_cli_get_balances () =
 
 let test_cli_unknown_command () =
   let engine = Matching_engine.create () in
-  let result = Main.handle_command engine (Yojson.Safe.from_string
+  let result = Cli.handle_command engine (Yojson.Safe.from_string
     {|{"command":"frobnicate"}|})
   in
   match result with
@@ -306,7 +306,7 @@ let test_cli_unknown_command () =
 let test_cli_int_amount () =
   let engine = Matching_engine.create () in
   (* amount as int instead of float to test get_float int path *)
-  let result = Main.handle_command engine (Yojson.Safe.from_string
+  let result = Cli.handle_command engine (Yojson.Safe.from_string
     {|{"command":"deposit","trader":"alice","token":"ETH","amount":100}|})
   in
   match result with
