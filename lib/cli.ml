@@ -1,7 +1,5 @@
 (** CLI command handler: parses JSON commands and dispatches to the matching engine. *)
 
-open Dex_orderbook
-
 let get_string json key =
   match json with
   | `Assoc l -> (
