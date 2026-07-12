@@ -6,8 +6,8 @@ description: "An OCaml implementation of a DEX order book with matching engine, 
 maintainer: "Pavel"
 authors: "Pavel"
 license: "MIT"
-homepage: "https://github.com/pavel-genai/dex-orderbook"
-bug-reports: "https://github.com/pavel-genai/dex-orderbook/issues"
+homepage: "https://github.com/ai-pavel/pit"
+bug-reports: "https://github.com/ai-pavel/pit/issues"
 depends: [
   "ocaml" {>= "4.14"}
   "dune" {>= "3.0"}
